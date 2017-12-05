@@ -123,6 +123,7 @@ func New(params driverParameters) (storagedriver.StorageDriver, error) {
 	client, err := hdfs.NewForUser(params.hdfsNameNode, params.hdfsUser)
 	if err != nil {
 		log.Fatal(err)
+		return nil, err // what semantics are expected from a new storage driver?
 	}
 
 	// Populate the driver
@@ -170,8 +171,10 @@ func (d *driver) PutContent(ctx context.Context, path string, contents []byte) e
 
 	// Get the FileWriter
 	writer, err := d.Writer(ctx, fullPath, false)
+	defer writer.Close()
 	if err != nil {
 		log.Print(err)
+		return err
 	}
 
 	// Write the contents
@@ -179,7 +182,6 @@ func (d *driver) PutContent(ctx context.Context, path string, contents []byte) e
 	if err != nil {
 		log.Print(err)
 	}
-	writer.Close()
 	return err
 }
 
@@ -194,6 +196,8 @@ func (d *driver) Reader(ctx context.Context, path string, offset int64) (io.Read
 	reader, err := d.hdfsClient.Open(fullPath)
 	if err != nil {
 		log.Print(err)
+		reader.Close()
+		return nil, err
 	}
 
 	// Seek to the supplied offset
@@ -269,7 +273,8 @@ func (d *driver) List(ctx context.Context, subPath string) ([]string, error) {
 	log.Print("IN List, File: " + subPath)
 	fileInfos, err := d.hdfsClient.ReadDir(d.fullPath(subPath))
 	if err != nil {
-		return make([]string, 0), nil
+		log.Printf("Unable to read directory %s: %s\n", subPath, err)
+		return make([]string, 0), err
 	}
 
 	fileNames := make([]string, len(fileInfos))
@@ -290,7 +295,6 @@ func (d *driver) Move(ctx context.Context, sourcePath string, destPathstring str
 // Delete recursively deletes all objects stored at "path" and its subpaths.
 func (d *driver) Delete(ctx context.Context, path string) error {
 	log.Print("IN Delete, File: " + path)
-	//return nil
 	return d.hdfsClient.Remove(d.fullPath(path))
 }
 
@@ -323,12 +327,13 @@ func newFileWriter(hdfsWriter *hdfs.FileWriter, filePath string, startingFileSiz
 func (w *fileWriter) Write(p []byte) (int, error) {
 	log.Print("IN Write, File: " + w.filePath)
 	w.Size()
-	if _, err := w.hdfsWriter.Write(p); err != nil {
+	var err error
+	if _, err = w.hdfsWriter.Write(p); err != nil {
 		log.Print(err)
 	}
 	w.isClosed = false
 	w.writeSize += int64(len(p))
-	return len(p), nil
+	return len(p), err
 }
 
 // Close the client connection
@@ -340,8 +345,8 @@ func (w *fileWriter) Close() error {
 			w.isClosed = true
 			if err := w.hdfsWriter.Close(); err != nil {
 				log.Print(err)
+				return err
 			}
-
 		}
 	}
 	return nil
