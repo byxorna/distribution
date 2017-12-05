@@ -219,18 +219,30 @@ func (d *driver) Writer(ctx context.Context, path string, append bool) (storaged
 	reader, err := d.hdfsClient.Open(fullPath)
 	if err != nil {
 		log.Print("File does not exist, File: " + fullPath)
-		hdfsWriter, _ := d.hdfsClient.Create(fullPath)
+		hdfsWriter, err := d.hdfsClient.Create(fullPath)
+		if err != nil {
+			log.Printf("Unable to create file %s: %s\n", fullPath, err.Error())
+			return nil, err
+		}
 		return newFileWriter(hdfsWriter, fullPath, 0), nil
 	}
 	if !append {
 		log.Print("File exists and is not append, removing, File: " + fullPath)
 		d.hdfsClient.Remove(fullPath)
-		hdfsWriter, _ := d.hdfsClient.Create(fullPath)
+		hdfsWriter, err := d.hdfsClient.Create(fullPath)
+		if err != nil {
+			log.Printf("Unable to create file %s: %s\n", fullPath, err.Error())
+			return nil, err
+		}
 		return newFileWriter(hdfsWriter, fullPath, 0), nil
 	}
 	log.Print("File exists and IS append, need to append:" + fullPath)
 	log.Print("Preappend size: " + strconv.Itoa(int(reader.Stat().Size())))
-	hdfsWriter, _ := d.hdfsClient.Append(fullPath)
+	hdfsWriter, err := d.hdfsClient.Append(fullPath)
+	if err != nil {
+		log.Printf("Unable to create file %s: %s\n", fullPath, err.Error())
+		return nil, err
+	}
 	return newFileWriter(hdfsWriter, fullPath, reader.Stat().Size()), nil
 }
 
