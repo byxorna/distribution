@@ -11,7 +11,7 @@ RUN set -ex \
 
 WORKDIR $DISTRIBUTION_DIR
 COPY . $DISTRIBUTION_DIR
-COPY cmd/registry/config-dev.yml /etc/docker/registry/config.yml
+COPY cmd/registry/config-hdfs-dev.yaml /etc/docker/registry/config.yml
 
 RUN make PREFIX=/go clean binaries
 
